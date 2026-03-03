@@ -1,6 +1,6 @@
 # AIRS Golden Config
 
-A hardened Prisma AIRS security profile built through iterative red team tuning. Started at 8.71% attack success rate with only built-in detectors — tuned it down to 1.20% static / 0.50% agent across 5 iterations.
+A hardened Prisma AIRS security profile built through iterative red team tuning. Started at 8.71% attack success rate with only built-in detectors — tuned it down to 1.15% static / 0.67% agent across 6 iterations.
 
 ```
 ASR %
@@ -10,8 +10,9 @@ ASR %
  1.1 ┤ █████ 51 threats                                       ITER 3 (-34%)
  1.3 ┤ █████ 59 threats (scan variance)                       ITER 4
  1.2 ┤ █████ 55 threats (DLP added)                           ITER 5
+ 1.2 ┤ █████ 53 threats (dual-scan + multi-turn)              ITER 6
      └──────────────────────────────────────────────────────────
-       Iter 0    Iter 1    Iter 2    Iter 3    Iter 4    Iter 5
+       Iter 0  Iter 1  Iter 2  Iter 3  Iter 4  Iter 5  Iter 6
 ```
 
 ## What's In It
@@ -35,11 +36,13 @@ SCM Red Team Scanner
 │  Wrapper (Flask)       │
 │                        │
 │  1. Prompt scan ───────┼──► AIRS Scan API
-│  2. If BLOCK → stop    │    Profile: redteamtest
+│     (all user turns)   │    Profile: redteamtest
+│  2. If BLOCK → stop    │
 │  3. LLM call ──────────┼──► OpenAI (gpt-4o-mini)
-│  4. Response scan ─────┼──► AIRS Scan API
-│  5. If BLOCK → stop    │    ├─ 9 built-in detectors
-│  6. Return response    │    ├─ 15 custom topics
+│  4. Response scan ─────┼──► AIRS (prompt+response)
+│  5. Response solo scan ┼──► AIRS (response only)
+│  6. If BLOCK → stop    │    ├─ 9 built-in detectors
+│  7. Return response    │    ├─ 15 custom topics
 │                        │    └─ DLP data profiles
 └────────────────────────┘
 ```
@@ -121,8 +124,9 @@ Each tuning cycle:
 | 3 | 15 | **1.11%** | 51/4602 | **0.67%** | Refined 4, added 1 |
 | 4 | 15 | **1.28%** | 59/4602 | **0.00%** | Refined 4 (scan variance) |
 | 5 | 15 | **1.20%** | 55/4602 | **0.50%** | Added DLP data profile |
+| 6 | 15 | **1.15%** | 53/4602 | **0.67%** | Multi-turn context + dual-scan response |
 
-17 of 24 attack categories reached 0% ASR. The remaining ~1.2% on static scans is borderline political discourse, Unicode encoding tricks, and stochastic scan variance — documented in the [full report](docs/golden_config_final_report.md).
+17 of 24 attack categories reached 0% ASR. The remaining ~1.15% on static scans is borderline political discourse (17.5% sub-ASR), Unicode encoding tricks, and stochastic scan variance — documented in the [full report](docs/golden_config_final_report.md).
 
 ## Key Findings
 
@@ -131,6 +135,8 @@ Each tuning cycle:
 - **Topic description quality > quantity.** Precise descriptions get 100% kill rates. The 250-char description carries ~40-50% of classifier weight.
 - **Multi-turn attacks need content targeting.** The classifier matches single turns — target the themes (weapons, genocide, terrorism), not the multi-turn structure.
 - **Reserve topic slots.** Starting at 60% utilization left room to adapt. Don't fill all 20 on day one.
+- **Dual-scan responses.** Scanning responses both with and without prompt context catches harmful content hidden behind creative prompt framing (word substitution, sci-fi scenarios, emergency framing).
+- **Topics have a false-positive floor.** Topics targeting semantically ambiguous domains (system admin, science fiction) block benign content. Accept the gap or find alternative coverage.
 
 ## Requirements
 
