@@ -6,7 +6,7 @@ VM_NAME="golden-config-vertex"
 ZONE="us-central1-a"
 MACHINE_TYPE="e2-medium"
 PORT=5008
-GCP_PROJECT="${GCP_PROJECT:?Set GCP_PROJECT before deploying}"
+GCP_PROJECT="sthornton-df21"
 
 # These must be set in your shell before running
 : "${PANW_AI_SEC_API_KEY:?Set PANW_AI_SEC_API_KEY before deploying}"

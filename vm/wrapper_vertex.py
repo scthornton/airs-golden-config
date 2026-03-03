@@ -177,22 +177,34 @@ def chat_completions():
     if not messages:
         return jsonify({"error": "messages array is required"}), 400
 
-    # Extract the last user prompt for scanning
-    user_prompt = ""
-    for msg in reversed(messages):
-        if msg.get("role") == "user":
-            user_prompt = msg.get("content", "")
-            break
+    # Extract user messages for scanning
+    # Multi-turn: concatenate all user messages so AIRS sees the full attack context
+    # Single-turn: behaves identically to before
+    user_messages = [
+        msg.get("content", "")
+        for msg in messages
+        if msg.get("role") == "user" and msg.get("content")
+    ]
+    last_user_prompt = user_messages[-1] if user_messages else ""
+
+    # For multi-turn conversations, build a combined context string
+    # so AIRS can detect escalation patterns across turns
+    if len(user_messages) > 1:
+        scan_prompt = "\n---\n".join(user_messages)
+    else:
+        scan_prompt = last_user_prompt
 
     tr_id = str(uuid.uuid4())
 
     # ── Step 1: AIRS Prompt Scan ──────────────────────────────────────
-    airs_prompt_result = airs_scan_prompt(user_prompt, tr_id)
+    # Scan the full conversation context (all user turns)
+    airs_prompt_result = airs_scan_prompt(scan_prompt, tr_id)
 
     if airs_prompt_result and airs_prompt_result.get("action") == "block":
-        log.info("BLOCKED prompt: %s...", user_prompt[:80])
+        log.info("BLOCKED prompt (%d turns): %s...", len(user_messages), last_user_prompt[:80])
         meta = extract_airs_meta(airs_prompt_result)
         meta["blocked_stage"] = "prompt"
+        meta["turns_scanned"] = len(user_messages)
         return jsonify(make_response(BLOCKED_MESSAGE, airs_meta=meta)), 200
 
     # ── Step 2: OpenAI API ────────────────────────────────────────────
@@ -231,18 +243,35 @@ def chat_completions():
         return jsonify({"error": str(e)}), 502
 
     # ── Step 3: AIRS Response Scan ────────────────────────────────────
-    airs_resp_result = airs_scan_response(user_prompt, response_text, tr_id)
+    # Dual-scan strategy:
+    #   3a. Scan response WITH prompt context (catches context-dependent violations)
+    #   3b. Scan response ALONE as a standalone prompt (catches harmful content
+    #        masked by creative prompt framing — e.g. word substitution, sci-fi scenarios)
+    airs_resp_result = airs_scan_response(scan_prompt, response_text, tr_id)
 
     if airs_resp_result and airs_resp_result.get("action") == "block":
-        log.info("BLOCKED response for prompt: %s...", user_prompt[:80])
+        log.info("BLOCKED response-ctx (%d turns) for prompt: %s...", len(user_messages), last_user_prompt[:80])
         meta = extract_airs_meta(airs_resp_result)
-        meta["blocked_stage"] = "response"
+        meta["blocked_stage"] = "response_context"
+        return jsonify(make_response(RESPONSE_BLOCKED_MESSAGE, airs_meta=meta, usage=usage)), 200
+
+    # 3b. Scan response text alone — catches harmful content that passes
+    # when evaluated in context of a benign-looking prompt
+    resp_standalone_id = str(uuid.uuid4())
+    airs_resp_standalone = airs_scan_prompt(response_text, resp_standalone_id)
+
+    if airs_resp_standalone and airs_resp_standalone.get("action") == "block":
+        log.info("BLOCKED response-solo (%d turns) for prompt: %s...", len(user_messages), last_user_prompt[:80])
+        meta = extract_airs_meta(airs_resp_standalone)
+        meta["blocked_stage"] = "response_standalone"
         return jsonify(make_response(RESPONSE_BLOCKED_MESSAGE, airs_meta=meta, usage=usage)), 200
 
     # ── Step 4: Return clean response ─────────────────────────────────
+    log.info("ALLOWED (%d turns): %s...", len(user_messages), last_user_prompt[:80])
     meta = extract_airs_meta(airs_resp_result) if airs_resp_result else None
     if meta:
         meta["blocked_stage"] = None
+        meta["turns_scanned"] = len(user_messages)
 
     # Pass through the original OpenAI response, just add AIRS metadata
     if airs_meta := meta:

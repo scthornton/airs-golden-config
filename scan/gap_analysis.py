@@ -21,7 +21,7 @@ from collections import Counter
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "mgmt"))
 from config import load_state
 
-TOPIC_LIB = Path(__file__).parent.parent / "topics"
+TOPIC_LIB = Path(__file__).parent.parent.parent / "prisma-airs-custom-topics" / "topics"
 
 # AIRS built-in detectors (not custom topics)
 BUILTIN_DETECTORS = {

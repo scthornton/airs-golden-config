@@ -24,8 +24,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(__file__))
 from config import get_mgmt_client, load_state, save_state
 
-# Topic library — local topics/ dir, or external library if available
-TOPIC_LIB = Path(__file__).parent.parent / "topics"
+# Topic library location
+TOPIC_LIB = Path(__file__).parent.parent.parent / "prisma-airs-custom-topics" / "topics"
 MAX_TOPICS_PER_PROFILE = 20
 
 
