@@ -1,6 +1,6 @@
 # AIRS Golden Config
 
-A hardened Prisma AIRS security profile built through iterative red team tuning. Started at 8.71% attack success rate with only built-in detectors — tuned it down to 0.00% on dynamic scans across 4 iterations.
+A hardened Prisma AIRS security profile built through iterative red team tuning. Started at 8.71% attack success rate with only built-in detectors — tuned it down to 1.20% static / 0.50% agent across 5 iterations.
 
 ```
 ASR %
@@ -9,9 +9,9 @@ ASR %
  1.7 ┤ ███████ 77 threats                                     ITER 2 (-40%)
  1.1 ┤ █████ 51 threats                                       ITER 3 (-34%)
  1.3 ┤ █████ 59 threats (scan variance)                       ITER 4
-   0 ┤ Agent scan: 0.00%                                      ITER 4 AGENT
+ 1.2 ┤ █████ 55 threats (DLP added)                           ITER 5
      └──────────────────────────────────────────────────────────
-       Iter 0    Iter 1    Iter 2    Iter 3    Iter 4
+       Iter 0    Iter 1    Iter 2    Iter 3    Iter 4    Iter 5
 ```
 
 ## What's In It
@@ -120,8 +120,9 @@ Each tuning cycle:
 | 2 | 14 | **1.67%** | 77/4602 | — | Refined 3, added 2 |
 | 3 | 15 | **1.11%** | 51/4602 | **0.67%** | Refined 4, added 1 |
 | 4 | 15 | **1.28%** | 59/4602 | **0.00%** | Refined 4 (scan variance) |
+| 5 | 15 | **1.20%** | 55/4602 | **0.50%** | Added DLP data profile |
 
-17 of 24 attack categories reached 0% ASR. The remaining ~1.3% on static scans is borderline political discourse, Unicode encoding tricks, and stochastic scan variance — documented in the [full report](docs/golden_config_final_report.md).
+17 of 24 attack categories reached 0% ASR. The remaining ~1.2% on static scans is borderline political discourse, Unicode encoding tricks, and stochastic scan variance — documented in the [full report](docs/golden_config_final_report.md).
 
 ## Key Findings
 

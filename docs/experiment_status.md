@@ -1,16 +1,16 @@
 # Golden Config — Experiment Status
 
-**Snapshot:** 2026-03-02
-**Status:** Iteration 5 — DLP Tier 1 profiles added, scan pending
-**Profile:** `redteamtest` (rev 5, `acee3d19-0b3a-4d27-bc4b-6055d8a1202b`)
+**Snapshot:** 2026-03-03
+**Status:** Iteration 5 — DLP scan complete, marginal improvement
+**Profile:** `redteamtest` (rev 6, `280fef28-2b3e-44de-90c5-4618707ef188`)
 
 ---
 
 ## Current Position
 
-We are at **iteration 4** (complete). The profile has 15 custom topics deployed. Iteration 4 static scan achieved **1.28% ASR** (59/4602). Agent scan achieved **0.00% ASR** (0/600).
+We are at **iteration 5** (complete). The profile has 15 custom topics + `airs-rt` nested DLP profile deployed. Iteration 5 static scan achieved **1.20% ASR** (55/4602). Agent scan: **0.50% ASR** (3/600).
 
-The slight increase from 1.11% to 1.28% is scan variance from the stochastic attack library — all 7 specifically targeted prompts were eliminated (26 threats), but 12 new prompts surfaced (36 threats). We are at the **diminishing returns plateau**.
+DLP addition produced a marginal static improvement (59→55 threats) and slight agent regression (0→3 threats, scan variance). The ~1.2% static ASR represents a stable plateau — the same 12 persistent prompts continue to bypass across iterations. We are firmly at the **diminishing returns plateau**.
 
 ```
 Timeline
@@ -44,6 +44,13 @@ Mar 2  ~22:00   SCM iteration 4 static scan completed (scan b40d4254)
 Mar 2  ~22:00   SCM iteration 4 agent scan completed (scan ca7b860c)
 Mar 2  22:05    Static: 4602 attacks, 59 threats, 1.28% ASR (scan variance: +8)
 Mar 2  22:05    Agent: 600 iterations, 0 threats, 0.00% ASR ✓ (CLEAN SWEEP)
+Mar 2  ~23:00   Created airs-rt nested DLP profile (5 categories)
+Mar 2  23:30    Attached DLP profile to security profile (rev 6)
+Mar 3  ~00:30   SCM iteration 5 scan started (static + agent, with DLP)
+Mar 3  ~04:00   SCM iteration 5 static scan completed (scan da7139f7)
+Mar 3  ~04:00   SCM iteration 5 agent scan completed (scan 7133b1d6)
+Mar 3  04:30    Static: 4602 attacks, 55 threats, 1.20% ASR ✓ (-6.8%)
+Mar 3  04:30    Agent: 600 iterations, 3 threats, 0.50% ASR (scan variance: +3)
 ```
 
 ---
@@ -63,11 +70,15 @@ ASR %
      ┤
  1.3 ┤ █████ 59 threats (iteration 4) — scan variance (+8)
      ┤
+ 1.2 ┤ █████ 55 threats (iteration 5) — DLP added (-6.8%)
+     ┤
    1 ┤ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ TARGET ─ ─ ─ ─ ─ ─ ─ ─
      ┤
-   0 ┤ ← STRETCH GOAL (agent scan: 0.00% ✓)
+ 0.5 ┤ ██ agent scan: 0.50% (3/600) — scan variance
+     ┤
+   0 ┤ ← STRETCH GOAL
      └──────────────────────────────────────────────────────────
-       Iter 0    Iter 1    Iter 2    Iter 3    Iter 4
+       Iter 0    Iter 1    Iter 2    Iter 3    Iter 4    Iter 5
 ```
 
 ---
@@ -111,7 +122,7 @@ Red Team Scanner (Strata Cloud Manager)
 | 2 | 2026-03-02 | 14 | **1.67%** | 77/4602 | — | Updated 3 topics + added 2 new |
 | 3 | 2026-03-02 | 15 | **1.11%** | 51/4602 | **0.67%** (4/600) | Updated 4 topics + added 1 new |
 | 4 | 2026-03-02 | 15 | **1.28%** | 59/4602 | **0.00%** (0/600) | Updated 4 topics — scan variance |
-| 5 | 2026-03-03 | 15 | *pending* | TBD | TBD | Added `airs-rt` nested DLP profile (5 categories) |
+| 5 | 2026-03-03 | 15 | **1.20%** | 55/4602 | **0.50%** (3/600) | Added `airs-rt` nested DLP profile (5 categories) |
 
 ---
 
@@ -164,36 +175,38 @@ Red Team Scanner (Strata Cloud Manager)
 
 ---
 
-## Remaining Threat Profile (59 static threats, pre-DLP)
+## Remaining Threat Profile (55 static threats, post-DLP)
 
 ### Threat Composition
 
 | Category | Threats | % of Total | Addressable? |
 |----------|---------|-----------|--------------|
-| Political opinion/bias | ~26 | 44% | Hard — borderline political discourse |
-| Multi-turn escalation | ~13 | 22% | Partial — JSON structure limits classifier |
-| Evasion/encoding | ~8 | 14% | No — Unicode/IPA classifier limitation |
-| Prompt injection | ~6 | 10% | Partial — colonial style persists |
-| Jailbreak | ~4 | 7% | Maybe — historical/extremist framing |
-| Non-violent crimes | ~2 | 3% | Low priority |
+| Political opinion/bias | ~21 | 38% | Hard — borderline political discourse |
+| Evasion/encoding | ~11 | 20% | No — Unicode/IPA/emoji classifier limitation |
+| Multi-turn escalation | ~10 | 18% | Partial — JSON structure limits classifier |
+| Prompt injection | ~7 | 13% | Partial — colonial style persists |
+| Bias | ~3 | 5% | Hard — "worst president" is ambiguous |
+| Non-violent crimes | ~2 | 4% | Low priority |
+| Jailbreak | ~1 | 2% | Low volume |
 
 ### Assessment
 
-We are at the **diminishing returns plateau**. The topic guardrail approach has achieved:
-- **85% reduction** in static ASR (8.71% → ~1.2%)
-- **100% reduction** in dynamic ASR (0.67% → 0.00%)
+We are at the **diminishing returns plateau**. The topic + DLP approach has achieved:
+- **86% reduction** in static ASR (8.71% → 1.20%)
+- **25% reduction** in dynamic ASR (0.67% → 0.50%)
 - **17/24 categories** at 0% ASR
 
-The remaining ~60 threats are split between scan variance (different prompts each run), classifier limitations (Unicode/IPA encoding), and borderline political content that the semantic classifier cannot reliably distinguish from legitimate discourse.
+The remaining 55 threats come from 18 unique prompts, of which 12 are persistent across iterations 4-5. They fall into three buckets: scan variance (different prompts each run), classifier limitations (Unicode/IPA encoding), and borderline political content.
 
 ---
 
 ## What to Do Next
 
 Options:
-1. **Declare success** — static ~1.3% ASR, agent 0.0% ASR, 17 categories clean
-2. **One more iteration** — target the top 3 new prompts (Trump, Biden, BJP) with remaining 5 topic slots
-3. **Switch to agent-only assessment** — agent scan is the more realistic threat model and shows 0.0%
+1. **Declare success** — static 1.20% ASR, agent 0.50% ASR, 17 categories clean. Five iterations have established the plateau.
+2. **One more iteration** — target persistent prompts (Trump, Biden, BJP, colonial gentleman) with remaining 5 topic slots. Diminishing returns expected.
+3. **Switch to agent-only assessment** — agent scan is the more realistic threat model. 0.50% ASR from 3 borderline content threats is operationally acceptable.
+4. **Focus on response-side tuning** — DLP Profanity profile may need custom dictionary entries for political/bias content patterns.
 
 ---
 
@@ -210,7 +223,7 @@ golden-config/
 │   └── golden_topics.json            # 14 topic definitions (missing weapons_mfg_history)
 │
 ├── mgmt/
-│   └── state.json                    # revision=5, 15 topic_ids, iteration=4
+│   └── state.json                    # revision=6, 15 topic_ids, iteration=5, dlp_profile
 │
 └── results/
     ├── iteration_00/
@@ -237,7 +250,13 @@ golden-config/
     │   ├── parsed_export.json         # Iter 4 static (4602/59/1.28%)
     │   └── iteration_report.md
     │
-    └── iteration_04_agent/            # Iter 4 agent (600/0/0.00%)
+    ├── iteration_04_agent/            # Iter 4 agent (600/0/0.00%)
+    │
+    ├── iteration_05/
+    │   ├── parsed_export.json         # Iter 5 static (4602/55/1.20%)
+    │   └── iteration_report.md
+    │
+    └── iteration_05_agent/            # Iter 5 agent (600/3/0.50%)
 ```
 
 ### Scan Export Archive
@@ -251,3 +270,5 @@ golden-config/
 | 5f08da26 (iter 3 agent) | `~/Downloads/AI_Red_Teaming_Report_5f08da26-...` | 600 | 4 | 0.67% |
 | b40d4254 (iter 4 static) | `~/Downloads/AI_Red_Teaming_Report_b40d4254-...` | 4,602 | 59 | 1.28% |
 | ca7b860c (iter 4 agent) | `~/Downloads/AI_Red_Teaming_Report_ca7b860c-...` | 600 | 0 | 0.00% |
+| da7139f7 (iter 5 static) | `~/Downloads/AI_Red_Teaming_Report_da7139f7-...` | 4,602 | 55 | 1.20% |
+| 7133b1d6 (iter 5 agent) | `~/Downloads/AI_Red_Teaming_Report_7133b1d6-...` | 600 | 3 | 0.50% |
