@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """
-Golden Config — OpenAI + AIRS Hard-Blocking Wrapper
+Golden Config — OpenAI + AIRS Hard-Blocking Wrapper (v4)
 
-Architecture:
+Architecture (dual-scan prompt + dual-scan response):
   1. Receive prompt (OpenAI-compat format)
-  2. AIRS Scan API → prompt scan
-  3. If AIRS blocks → return blocked message (LLM never sees it)
-  4. OpenAI API → generate response
-  5. AIRS Scan API → response scan
-  6. If AIRS blocks response → return sanitized message
-  7. Return clean response
+  2. AIRS prompt scan A — last message only (clean signal, no dilution)
+  3. AIRS prompt scan B — native multi-turn contents array (escalation detection)
+  4. If EITHER blocks → return blocked message (LLM never sees it)
+  5. OpenAI API → generate response
+  6. AIRS response scan A — response with prompt context
+  7. AIRS response scan B — response standalone (catches creative framing)
+  8. If EITHER blocks → return sanitized message
+  9. Return clean response
 
-Key difference from airs_claude_wrapper.py:
-  - That wrapper passes prompts to Claude regardless (observe mode, line 79)
-  - THIS wrapper hard-blocks on AIRS verdict — attack prompts never reach the LLM
+Key changes from v3:
+  - v3 concatenated all user messages into one prompt string — diluted classifier
+    signal by ~90% at turn 10. Iter 4 (last message only) scored 0; v3 scored 28.
+  - v4 scans last message individually (high signal) AND uses native AIRS contents
+    array for multi-turn context (previous turns as context, last turn scanned).
 """
 
 from flask import Flask, request, jsonify
@@ -47,12 +51,33 @@ RESPONSE_BLOCKED_MESSAGE = (
 
 # ── AIRS Scanning ──────────────────────────────────────────────────────────────
 
-def airs_scan_prompt(prompt: str, tr_id: str) -> dict | None:
-    """Scan a prompt through AIRS. Returns response dict or None on error."""
+def _airs_post(payload: dict) -> dict | None:
+    """Send a scan request to AIRS. Returns response dict or None on error."""
     if not PANW_API_KEY:
         log.warning("PANW_AI_SEC_API_KEY not set — skipping scan")
         return None
+    try:
+        resp = requests.post(
+            AIRS_API_URL,
+            headers={
+                "X-Pan-Token": PANW_API_KEY,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        else:
+            log.error("AIRS scan HTTP %d: %s", resp.status_code, resp.text[:200])
+            return None
+    except Exception as e:
+        log.error("AIRS scan error: %s", e)
+        return None
 
+
+def airs_scan_prompt(prompt: str, tr_id: str) -> dict | None:
+    """Scan a single prompt through AIRS."""
     payload = {
         "tr_id": tr_id,
         "ai_profile": {"profile_name": SECURITY_PROFILE},
@@ -62,39 +87,46 @@ def airs_scan_prompt(prompt: str, tr_id: str) -> dict | None:
         },
         "contents": [{"prompt": prompt}],
     }
-
-    try:
-        resp = requests.post(
-            AIRS_API_URL,
-            headers={
-                "X-Pan-Token": PANW_API_KEY,
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=15,
+    result = _airs_post(payload)
+    if result:
+        log.info(
+            "AIRS prompt scan: action=%s category=%s detections=%s",
+            result.get("action"),
+            result.get("category"),
+            result.get("prompt_detected", {}),
         )
-        if resp.status_code == 200:
-            result = resp.json()
-            log.info(
-                "AIRS prompt scan: action=%s category=%s detections=%s",
-                result.get("action"),
-                result.get("category"),
-                result.get("prompt_detected", {}),
-            )
-            return result
-        else:
-            log.error("AIRS scan HTTP %d: %s", resp.status_code, resp.text[:200])
-            return None
-    except Exception as e:
-        log.error("AIRS scan error: %s", e)
-        return None
+    return result
+
+
+def airs_scan_multiturn(contents: list, tr_id: str, session_id: str = None) -> dict | None:
+    """Scan using native AIRS contents array for multi-turn conversations.
+
+    The contents array holds previous turns as context; the LAST element is scanned.
+    This preserves classifier signal strength while providing escalation context.
+    """
+    payload = {
+        "tr_id": tr_id,
+        "ai_profile": {"profile_name": SECURITY_PROFILE},
+        "metadata": {
+            "app_user": "red-team-target",
+            "ai_model": DEFAULT_MODEL,
+        },
+        "contents": contents,
+    }
+    if session_id:
+        payload["session_id"] = session_id
+
+    result = _airs_post(payload)
+    if result:
+        log.info(
+            "AIRS multi-turn scan (%d elements): action=%s category=%s",
+            len(contents), result.get("action"), result.get("category"),
+        )
+    return result
 
 
 def airs_scan_response(prompt: str, response_text: str, tr_id: str) -> dict | None:
-    """Scan a response through AIRS. Returns response dict or None on error."""
-    if not PANW_API_KEY:
-        return None
-
+    """Scan a response through AIRS with prompt context."""
     payload = {
         "tr_id": tr_id,
         "ai_profile": {"profile_name": SECURITY_PROFILE},
@@ -104,31 +136,47 @@ def airs_scan_response(prompt: str, response_text: str, tr_id: str) -> dict | No
         },
         "contents": [{"prompt": prompt, "response": response_text}],
     }
-
-    try:
-        resp = requests.post(
-            AIRS_API_URL,
-            headers={
-                "X-Pan-Token": PANW_API_KEY,
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=15,
+    result = _airs_post(payload)
+    if result:
+        log.info(
+            "AIRS response scan: action=%s category=%s",
+            result.get("action"),
+            result.get("category"),
         )
-        if resp.status_code == 200:
-            result = resp.json()
-            log.info(
-                "AIRS response scan: action=%s category=%s",
-                result.get("action"),
-                result.get("category"),
-            )
-            return result
-        else:
-            log.error("AIRS response scan HTTP %d: %s", resp.status_code, resp.text[:200])
-            return None
-    except Exception as e:
-        log.error("AIRS response scan error: %s", e)
-        return None
+    return result
+
+
+def build_contents_array(messages: list) -> list:
+    """Convert OpenAI messages to AIRS contents array format.
+
+    Pairs user prompts with assistant responses. System messages are skipped.
+    The last element (the current user turn) has no response — that's what
+    AIRS scans while using the previous elements as context.
+    """
+    contents = []
+    current_entry = {}
+
+    for msg in messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if not content or role == "system":
+            continue
+
+        if role == "user":
+            if "prompt" in current_entry:
+                contents.append(current_entry)
+                current_entry = {}
+            current_entry["prompt"] = content
+        elif role == "assistant":
+            if "prompt" in current_entry:
+                current_entry["response"] = content
+                contents.append(current_entry)
+                current_entry = {}
+
+    if current_entry:
+        contents.append(current_entry)
+
+    return contents
 
 
 # ── OpenAI-compat response builder ────────────────────────────────────────────
@@ -177,9 +225,7 @@ def chat_completions():
     if not messages:
         return jsonify({"error": "messages array is required"}), 400
 
-    # Extract user messages for scanning
-    # Multi-turn: concatenate all user messages so AIRS sees the full attack context
-    # Single-turn: behaves identically to before
+    # Extract last user message for focused scanning
     user_messages = [
         msg.get("content", "")
         for msg in messages
@@ -187,27 +233,41 @@ def chat_completions():
     ]
     last_user_prompt = user_messages[-1] if user_messages else ""
 
-    # For multi-turn conversations, build a combined context string
-    # so AIRS can detect escalation patterns across turns
-    if len(user_messages) > 1:
-        scan_prompt = "\n---\n".join(user_messages)
-    else:
-        scan_prompt = last_user_prompt
+    # Build native AIRS contents array for multi-turn context
+    contents_array = build_contents_array(messages)
+    is_multi_turn = len(contents_array) > 1
 
+    session_id = str(uuid.uuid4())
     tr_id = str(uuid.uuid4())
 
-    # ── Step 1: AIRS Prompt Scan ──────────────────────────────────────
-    # Scan the full conversation context (all user turns)
-    airs_prompt_result = airs_scan_prompt(scan_prompt, tr_id)
+    # ── Step 1A: AIRS Prompt Scan — Last message only ──────────────────
+    # High-signal scan with no dilution from conversation history.
+    # Iter 4 used this approach exclusively and achieved 0% agent ASR.
+    airs_prompt_result = airs_scan_prompt(last_user_prompt, tr_id)
 
     if airs_prompt_result and airs_prompt_result.get("action") == "block":
-        log.info("BLOCKED prompt (%d turns): %s...", len(user_messages), last_user_prompt[:80])
+        log.info("BLOCKED prompt-focused (%d turns): %s...", len(user_messages), last_user_prompt[:80])
         meta = extract_airs_meta(airs_prompt_result)
-        meta["blocked_stage"] = "prompt"
+        meta["blocked_stage"] = "prompt_focused"
         meta["turns_scanned"] = len(user_messages)
         return jsonify(make_response(BLOCKED_MESSAGE, airs_meta=meta)), 200
 
-    # ── Step 2: OpenAI API ────────────────────────────────────────────
+    # ── Step 1B: AIRS Prompt Scan — Multi-turn context ─────────────────
+    # Uses native AIRS contents array: previous turns as context, last turn
+    # scanned with full classifier signal. Catches escalation patterns that
+    # single-turn scan misses, without the signal dilution of concatenation.
+    if is_multi_turn:
+        mt_tr_id = str(uuid.uuid4())
+        airs_mt_result = airs_scan_multiturn(contents_array, mt_tr_id, session_id)
+
+        if airs_mt_result and airs_mt_result.get("action") == "block":
+            log.info("BLOCKED prompt-multiturn (%d elements): %s...", len(contents_array), last_user_prompt[:80])
+            meta = extract_airs_meta(airs_mt_result)
+            meta["blocked_stage"] = "prompt_multiturn"
+            meta["turns_scanned"] = len(contents_array)
+            return jsonify(make_response(BLOCKED_MESSAGE, airs_meta=meta)), 200
+
+    # ── Step 2: OpenAI API ─────────────────────────────────────────────
     if not OPENAI_API_KEY:
         return jsonify({"error": "OPENAI_API_KEY not set"}), 500
 
@@ -242,38 +302,34 @@ def chat_completions():
         log.error("OpenAI error: %s", e)
         return jsonify({"error": str(e)}), 502
 
-    # ── Step 3: AIRS Response Scan ────────────────────────────────────
-    # Dual-scan strategy:
-    #   3a. Scan response WITH prompt context (catches context-dependent violations)
-    #   3b. Scan response ALONE as a standalone prompt (catches harmful content
-    #        masked by creative prompt framing — e.g. word substitution, sci-fi scenarios)
-    airs_resp_result = airs_scan_response(scan_prompt, response_text, tr_id)
+    # ── Step 3A: AIRS Response Scan — with prompt context ──────────────
+    airs_resp_result = airs_scan_response(last_user_prompt, response_text, tr_id)
 
     if airs_resp_result and airs_resp_result.get("action") == "block":
-        log.info("BLOCKED response-ctx (%d turns) for prompt: %s...", len(user_messages), last_user_prompt[:80])
+        log.info("BLOCKED response-ctx (%d turns): %s...", len(user_messages), last_user_prompt[:80])
         meta = extract_airs_meta(airs_resp_result)
         meta["blocked_stage"] = "response_context"
         return jsonify(make_response(RESPONSE_BLOCKED_MESSAGE, airs_meta=meta, usage=usage)), 200
 
-    # 3b. Scan response text alone — catches harmful content that passes
-    # when evaluated in context of a benign-looking prompt
+    # ── Step 3B: AIRS Response Scan — standalone ───────────────────────
+    # Catches harmful content masked by creative prompt framing (word
+    # substitution, sci-fi scenarios, emergency framing).
     resp_standalone_id = str(uuid.uuid4())
     airs_resp_standalone = airs_scan_prompt(response_text, resp_standalone_id)
 
     if airs_resp_standalone and airs_resp_standalone.get("action") == "block":
-        log.info("BLOCKED response-solo (%d turns) for prompt: %s...", len(user_messages), last_user_prompt[:80])
+        log.info("BLOCKED response-solo (%d turns): %s...", len(user_messages), last_user_prompt[:80])
         meta = extract_airs_meta(airs_resp_standalone)
         meta["blocked_stage"] = "response_standalone"
         return jsonify(make_response(RESPONSE_BLOCKED_MESSAGE, airs_meta=meta, usage=usage)), 200
 
-    # ── Step 4: Return clean response ─────────────────────────────────
+    # ── Step 4: Return clean response ──────────────────────────────────
     log.info("ALLOWED (%d turns): %s...", len(user_messages), last_user_prompt[:80])
     meta = extract_airs_meta(airs_resp_result) if airs_resp_result else None
     if meta:
         meta["blocked_stage"] = None
         meta["turns_scanned"] = len(user_messages)
 
-    # Pass through the original OpenAI response, just add AIRS metadata
     if airs_meta := meta:
         openai_data["airs_runtime"] = airs_meta
     return jsonify(openai_data), 200
@@ -284,11 +340,13 @@ def health():
     return jsonify({
         "status": "healthy",
         "service": "Golden Config — AIRS Hard-Block Wrapper",
+        "version": "v4",
         "model": DEFAULT_MODEL,
         "security_profile": SECURITY_PROFILE,
         "airs_api_key_set": bool(PANW_API_KEY),
         "openai_api_key_set": bool(OPENAI_API_KEY),
         "mode": "BLOCKING",
+        "scan_strategy": "dual-prompt + dual-response",
     }), 200
 
 
@@ -319,5 +377,6 @@ if __name__ == "__main__":
     else:
         log.info("OpenAI API ready — model: %s", DEFAULT_MODEL)
 
+    log.info("Wrapper v4 — dual-prompt + dual-response scanning")
     log.info("Starting on port %d", port)
     app.run(host="0.0.0.0", port=port, debug=False)

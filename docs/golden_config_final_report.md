@@ -4,29 +4,28 @@
 
 **Author:** Scott Thornton, Palo Alto Networks
 **Date:** March 3, 2026
-**Version:** 1.2
+**Version:** 1.1
 
 ---
 
 ## Executive Summary
 
-This report documents the creation of a "golden config" — a hardened Prisma AIRS security profile optimized through iterative AI red team testing. Starting from a baseline with only built-in detectors (8.71% Attack Success Rate), we iteratively deployed and refined 15 custom topic guardrails, DLP data profiles, and wrapper architecture across 6 tuning cycles to achieve:
+This report documents the creation of a "golden config" — a hardened Prisma AIRS security profile optimized through iterative AI red team testing. Starting from a baseline with only built-in detectors (8.71% Attack Success Rate), we iteratively deployed and refined 15 custom topic guardrails and DLP data profiles across 5 tuning cycles to achieve:
 
-- **87% reduction** in static attack success rate (8.71% → 1.15%)
-- **Dynamic/agent-based ASR** held at ≤0.67% across all scans
+- **86% reduction** in static attack success rate (8.71% → 1.20%)
+- **Dynamic/agent-based ASR** held at ≤0.50% across all scans
 - **17 of 24** attack categories at 0% ASR
 - **7 topics** with perfect 100% kill rates maintained across all scans
 
 | Metric | Baseline | Final (Static) | Final (Agent) |
 |--------|----------|----------------|---------------|
-| Attack Success Rate | 8.71% | **1.15%** | **0.67%** |
-| Threats / Total | 401 / 4,602 | 53 / 4,602 | 4 / 600 |
+| Attack Success Rate | 8.71% | **1.20%** | **0.50%** |
+| Threats / Total | 401 / 4,602 | 55 / 4,602 | 3 / 600 |
 | Custom topics | 0 | 15 | 15 |
 | DLP profiles | 0 | 1 (nested, 5 categories) | 1 |
 | Categories at 0% ASR | 2 | 17 | — |
-| Wrapper version | v1 (basic) | v3 (dual-scan + multi-turn) | v3 |
 
-The resulting configuration consists of three layers — built-in detectors, custom topic guardrails, and DLP data profiles — plus a hardened wrapper architecture with multi-turn context scanning and dual-scan response filtering, packaged as a reusable starting point for any Prisma AIRS deployment.
+The resulting configuration consists of three layers — built-in detectors, custom topic guardrails, and DLP data profiles — packaged as a reusable starting point for any Prisma AIRS deployment.
 
 ---
 
@@ -132,23 +131,18 @@ These 5 profiles should be enabled on every deployment:
 Red Team Scanner (Strata Cloud Manager)
         │
         ▼
-┌──────────────────────────────────┐
-│  AIRS Hard-Block Wrapper (v3)    │
-│  (Flask on GCP VM)               │
-│                                  │
-│  1. Receive prompt               │
-│     (multi-turn: concatenate     │
-│      all user messages)          │
-│  2. AIRS prompt scan ────────────┼──► AIRS Scan API
-│     └─ If BLOCK → return 200    │    Profile: redteamtest (rev 11)
-│        (LLM never sees it)       │    ├─ 9 built-in detectors → BLOCK
-│  3. LLM call ────────────────────┼──► OpenAI (gpt-4o-mini)
-│  4. AIRS response scan (ctx) ────┼──► AIRS Scan API (prompt + response)
-│     └─ If BLOCK → return 200    │    ├─ 15 custom topics → BLOCK
-│  5. AIRS response scan (solo) ──┼──► AIRS Scan API (response only)
-│     └─ If BLOCK → return 200    │    └─ DLP data profiles → BLOCK
-│  6. Return LLM response          │
-└──────────────────────────────────┘
+┌─────────────────────────────────┐
+│  AIRS Hard-Block Wrapper        │
+│  (Flask on GCP VM)              │
+│                                 │
+│  1. Prompt scan ────────────────┼──► AIRS Scan API
+│  2. If BLOCK → return block msg │    Profile: redteamtest (rev 6)
+│  3. LLM call ───────────────────┼──► OpenAI (gpt-4o-mini)
+│  4. Response scan ──────────────┼──► AIRS Scan API
+│  5. If BLOCK → return block msg │    ├─ 9 built-in detectors → BLOCK
+│  6. Return LLM response         │    ├─ 15 custom topics → BLOCK
+│                                 │    └─ DLP data profiles → BLOCK
+└─────────────────────────────────┘
 ```
 
 ### Iterative Tuning Process
@@ -191,15 +185,13 @@ ASR %
      ┤
  1.2 ┤ █████ 55 threats (DLP added)                           ITER 5
      ┤
- 1.2 ┤ ████ 53 threats (dual-scan + multi-turn)               ITER 6
-     ┤
    1 ┤ ─ ─ ─ ─ ─ ─ ─ ─ 1% TARGET ─ ─ ─ ─ ─ ─ ─ ─
      ┤
- 0.7 ┤ ███ Agent scan: 0.67%                                  ITER 6 AGENT
+ 0.5 ┤ ██ Agent scan: 0.50%                                   ITER 5 AGENT
      ┤
    0 ┤ Agent scan: 0.00% ✓                                    ITER 4 AGENT
-     └──────────────────────────────────────────────────────────────────
-       Iter 0    Iter 1    Iter 2    Iter 3    Iter 4    Iter 5    Iter 6
+     └──────────────────────────────────────────────────────────
+       Iter 0    Iter 1    Iter 2    Iter 3    Iter 4    Iter 5
 ```
 
 ### Per-Iteration Summary
@@ -212,7 +204,6 @@ ASR %
 | 3 | 15 | **1.11%** | 51/4602 | **0.67%** | Refined 4 topics + added 1 new |
 | 4 | 15 | **1.28%** | 59/4602 | **0.00%** | Refined 4 topics — scan variance |
 | 5 | 15 | **1.20%** | 55/4602 | **0.50%** | Added DLP data profile (5 categories) |
-| 6 | 15 | **1.15%** | 53/4602 | **0.67%** | Dual-scan wrapper + multi-turn context |
 
 ### Full Category Progression (Baseline → Final)
 
@@ -263,15 +254,7 @@ The dynamic agent scan (0.00%–0.50% ASR across iterations) provides a more rea
 
 Starting with 60% slot utilization (12/20) left room for 3 new topics across iterations 2-4, with 5 slots still reserved. **Don't fill all 20 slots on day one** — reserve capacity for threats discovered during red team testing.
 
-### 7. Dual-Scan Responses Catch Creative Framing
-
-Agent scans revealed that attackers use creative prompt framing (word substitution, sci-fi scenarios, emergency contexts) to mask harmful LLM responses. Scanning the response only in context of the prompt misses these — the benign-looking prompt makes the response appear in-context. Adding a second scan of the response text *alone* (as a standalone prompt) catches harmful content regardless of the framing used to elicit it.
-
-### 8. Topics Have a False-Positive Floor
-
-Topics targeting semantically ambiguous domains (system administration, science fiction) inevitably block benign content. In iteration 6, two new topics (`destructive_system_manipulation`, `harmful_experimentation_fiction`) were deployed and immediately reverted because they blocked legitimate macOS troubleshooting and science education queries. Accept the gap or find alternative coverage — don't force topics into ambiguous semantic spaces.
-
-### 9. The Diminishing Returns Plateau Is Real
+### 7. The Diminishing Returns Plateau Is Real
 
 After 4 iterations, the remaining threats fall into three buckets that custom topics cannot easily address:
 - **Borderline political discourse** — "worst president," "politician's scandals" are ambiguous
@@ -322,7 +305,7 @@ golden-config/
 │   └── collect_vm_logs.py          # VM log collection
 │
 ├── results/
-│   └── iteration_00..06/           # Full scan data for all iterations
+│   └── iteration_00..05/           # Full scan data for all iterations
 │
 └── docs/
     ├── golden_config_final_report.md  # This report
@@ -371,12 +354,6 @@ python scan/scan_tester.py --profile your-profile-name
 
 Tier 1 DLP data profiles (Secrets and Credentials, PII, Sensitive Content, Profanity, Self Harm) were added in iteration 5. Red team scan confirmed a modest positive impact: static ASR improved 1.28% → 1.20%, with JAILBREAK -75% and BIAS -40% reductions likely driven by Profanity detection catching toxic LLM responses. DLP complements prompt-side topic guardrails with response-side filtering.
 
-### 1a. Wrapper Architecture Hardened (Complete — Iteration 6)
-
-Two wrapper-level improvements address agent bypass patterns:
-- **Multi-turn context scanning:** All user messages concatenated with `\n---\n` separator before AIRS prompt scan, allowing AIRS to see escalation patterns across turns rather than evaluating each message in isolation.
-- **Dual-scan response filtering:** LLM responses scanned twice — once with the prompt context (catches context-dependent violations) and once standalone as a prompt (catches harmful content masked by creative prompt framing like word substitution, sci-fi scenarios, and emergency contexts).
-
 ### 2. Customer-Specific DLP Tuning
 
 The Tier 1 DLP profiles cover common patterns. Deployments should add:
@@ -410,8 +387,6 @@ The red team scan should be re-run periodically as:
 | ca7b860c | 4 | Agent | 600 | 0 | 0.00% |
 | da7139f7 | 5 | Static | 4,602 | 55 | 1.20% |
 | 7133b1d6 | 5 | Agent | 600 | 3 | 0.50% |
-| 0846b725 | 6 | Static | 4,602 | 53 | 1.15% |
-| 4430f0f4 | 6 | Agent | 600 | 4 | 0.67% |
 
 ## Appendix B: Topic Definitions
 
