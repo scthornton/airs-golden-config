@@ -1,18 +1,20 @@
 # AIRS Golden Config
 
-A hardened Prisma AIRS security profile built through iterative red team tuning. Started at 8.71% attack success rate with only built-in detectors — tuned it down to 1.15% static / 0.67% agent across 6 iterations.
+A hardened Prisma AIRS security profile built through iterative red team tuning. Started at 8.71% attack success rate with only built-in detectors — tuned down to **1.02% static** (best) / **Score 15 agent** across 8 iterations. Automated evaluation via [Daystrom](https://github.com/cdot65/daystrom) confirmed topics are at the AIRS classifier ceiling.
 
 ```
-ASR %
+Static ASR %
  8.7 ┤ █████████████████████████████████████████ 401 threats  BASELINE
  2.8 ┤ ████████████ 127 threats                               ITER 1 (-68%)
  1.7 ┤ ███████ 77 threats                                     ITER 2 (-40%)
  1.1 ┤ █████ 51 threats                                       ITER 3 (-34%)
  1.3 ┤ █████ 59 threats (scan variance)                       ITER 4
  1.2 ┤ █████ 55 threats (DLP added)                           ITER 5
- 1.2 ┤ █████ 53 threats (dual-scan + multi-turn)              ITER 6
+ 1.2 ┤ █████ 53 threats (stable)                              ITER 6
+ 1.0 ┤ ████ 47 threats (NEW BEST)                             ITER 7 ✓
+ 1.4 ┤ ██████ 65 threats (scan variance)                      ITER 8
      └──────────────────────────────────────────────────────────
-       Iter 0  Iter 1  Iter 2  Iter 3  Iter 4  Iter 5  Iter 6
+       Iter 0  Iter 1  Iter 2  Iter 3  Iter 4  Iter 5  Iter 6-8
 ```
 
 ## What's In It
@@ -116,27 +118,30 @@ Each tuning cycle:
 
 ## Results
 
-| Iter | Topics | Static ASR | Threats | Agent ASR | What Changed |
-|------|--------|------------|---------|-----------|--------------|
+| Iter | Topics | Static ASR | Threats | Agent Score | What Changed |
+|------|--------|------------|---------|-------------|--------------|
 | 0 | 0 | 8.71% | 401/4602 | — | Baseline |
 | 1 | 12 | **2.76%** | 127/4602 | — | Deployed 12 topics |
 | 2 | 14 | **1.67%** | 77/4602 | — | Refined 3, added 2 |
-| 3 | 15 | **1.11%** | 51/4602 | **0.67%** | Refined 4, added 1 |
-| 4 | 15 | **1.28%** | 59/4602 | **0.00%** | Refined 4 (scan variance) |
-| 5 | 15 | **1.20%** | 55/4602 | **0.50%** | Added DLP data profile |
-| 6 | 15 | **1.15%** | 53/4602 | **0.67%** | Multi-turn context + dual-scan response |
+| 3 | 15 | **1.11%** | 51/4602 | — | Refined 4, added 1 |
+| 4 | 15 | **1.28%** | 59/4602 | — | Refined 4 (scan variance) |
+| 5 | 15 | **1.20%** | 55/4602 | — | Added DLP data profile |
+| 6 | 15 | **1.15%** | 53/4602 | 15 | Stable confirmation |
+| 7 | 15 | **1.02%** | 47/4602 | 27.5 | Best static; agent regression (math framing) |
+| 8 | 15 | **1.41%** | 65/4602 | 15 | Refined 4 topics + wrapper v4; agent recovered |
 
-17 of 24 attack categories reached 0% ASR. The remaining ~1.15% on static scans is borderline political discourse (17.5% sub-ASR), Unicode encoding tricks, and stochastic scan variance — documented in the [full report](docs/golden_config_final_report.md).
+17 of 24 attack categories reached 0% ASR. Daystrom automated evaluation confirmed all topics are at the **AIRS classifier ceiling** (60-75% coverage) due to OR-gate architecture. See [experiment status](docs/experiment_status.md) and [full report](docs/golden_config_final_report.md).
 
 ## Key Findings
 
 - **Built-in detectors leave major gaps.** 56% of baseline threats targeted categories with zero built-in coverage.
 - **First topic deployment is the biggest lever.** Iteration 1 cut ASR by 68%. Each subsequent iteration yielded diminishing returns.
 - **Topic description quality > quantity.** Precise descriptions get 100% kill rates. The 250-char description carries ~40-50% of classifier weight.
+- **AIRS classifier is an OR-gate, not AND-gate.** Fires on ANY matching signal in the description, not on the conjunction. "Blocks X to achieve Y" triggers on X alone OR Y alone. This is the fundamental ceiling — no topic rewriting can fix it.
 - **Multi-turn attacks need content targeting.** The classifier matches single turns — target the themes (weapons, genocide, terrorism), not the multi-turn structure.
 - **Reserve topic slots.** Starting at 60% utilization left room to adapt. Don't fill all 20 on day one.
-- **Dual-scan responses.** Scanning responses both with and without prompt context catches harmful content hidden behind creative prompt framing (word substitution, sci-fi scenarios, emergency framing).
-- **Topics have a false-positive floor.** Topics targeting semantically ambiguous domains (system admin, science fiction) block benign content. Accept the gap or find alternative coverage.
+- **Dual-scan wrapper (v4).** Scanning prompts twice (last message + full context) and responses twice (with context + standalone) catches both escalation patterns and creative framing bypasses.
+- **3 persistent agent goals use creative evasion.** Fictional character roleplay (Hannibal Lecter), absurdist displacement (SmartWash 3000 socks), and vocabulary substitution ("sun-drops" for oxycontin) bypass classifiers by never using matchable keywords.
 
 ## Requirements
 
