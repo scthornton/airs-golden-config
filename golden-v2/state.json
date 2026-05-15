@@ -1,0 +1,32 @@
+{
+  "topic_ids": {
+    "instruction_override_injection": "78af658b-ae68-4893-a9e5-f24aa4ab4f46",
+    "roleplay_persona_jailbreak": "f9528cf5-89ee-4e34-aedb-529982f7e61e",
+    "tool_capability_enumeration": "1f2fb14b-3b44-446c-b66c-ca0454a11682",
+    "system_prompt_disclosure": "900a2690-dd7c-47ed-96ad-6414cadd08c4",
+    "brand_defamation_attack": "58c83d50-52ce-4f2a-84e0-9968233b8265",
+    "cbrn_substance_synthesis": "2de8b283-9970-4168-a9d3-5826d3477b92",
+    "encoded_obfuscated_request": "dc59c43f-8bef-4830-8e8f-d550a0599758",
+    "political_bias_generation": "5beece0c-334c-4f70-aecd-ebe561a3b1f6",
+    "discriminatory_ranking_content": "d1079a33-306e-4102-bec0-fd943121f565",
+    "style_directive_bypass": "d8ec3478-1c01-4bd7-97d4-ef6df9e64794",
+    "adversarial_suffix_attack": "98e8b90b-a810-4bc3-adfd-1845c9a11dda",
+    "weapons_crime_framing": "17e3b8f2-d74a-4781-9a2e-90bda4c5bf3d"
+  },
+  "topic_revisions": {
+    "instruction_override_injection": 3,
+    "roleplay_persona_jailbreak": 3,
+    "tool_capability_enumeration": 3,
+    "system_prompt_disclosure": 3,
+    "brand_defamation_attack": 3,
+    "cbrn_substance_synthesis": 3,
+    "encoded_obfuscated_request": 3,
+    "political_bias_generation": 3,
+    "discriminatory_ranking_content": 2,
+    "style_directive_bypass": 3,
+    "adversarial_suffix_attack": 2,
+    "weapons_crime_framing": 1
+  },
+  "profile_id": "1be480bb-1a1c-4ced-a365-162c98de442e",
+  "revision": 2
+}

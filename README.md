@@ -132,6 +132,12 @@ Each tuning cycle:
 
 17 of 24 attack categories reached 0% ASR. Daystrom automated evaluation confirmed all topics are at the **AIRS classifier ceiling** (60-75% coverage) due to OR-gate architecture. See [experiment status](docs/experiment_status.md) and [full report](docs/golden_config_final_report.md).
 
+## Golden Config v2
+
+[golden-v2/](golden-v2/) simplifies the 15-topic v1 down to 12 topics using precision learnings from the Morgan Stanley engagement. Achieves 4.76% ASR on a 126-prompt bypass corpus (vs v1's 5.56%) with 20% fewer topics. Topic descriptions rewritten to 15-20 words anchored to concrete tokens.
+
+See [golden-v2/README.md](golden-v2/README.md) for details.
+
 ## Key Findings
 
 - **Built-in detectors leave major gaps.** 56% of baseline threats targeted categories with zero built-in coverage.
