@@ -2,6 +2,8 @@
 
 Simplified AIRS security profile tuned against the Red Teaming Attack Library. Reduced from 15 to 12 custom topics using precision learnings from the Morgan Stanley engagement, achieving the same protection with 20% fewer topics.
 
+> **v3 iteration result (2026-05-15):** Attempted 13th topic for encoding/structural attacks. Caught 1/6 remaining bypasses but caused 33% benign FP. Rolled back. v2 remains optimal. See `RESULTS-v3.md`.
+
 ## Results
 
 ```
