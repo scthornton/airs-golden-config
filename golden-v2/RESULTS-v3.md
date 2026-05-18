@@ -7,7 +7,7 @@
 
 ## Summary
 
-Iterated on golden-v2 to attempt pushing static ASR below the 4.76% floor. Added one experimental topic targeting structural encoding attacks (LaTeX, acrostics, IPA, Unicode tags). Result: 1/6 additional bypasses caught, but 33% false-positive rate on benign prompts. Rolled back. The 12-topic golden-v2 configuration remains the optimal point on the precision/recall curve, hitting a structural classifier limit consistent with the Morgan Stanley engagement learnings.
+Iterated on golden-v2 to attempt pushing static ASR below the 4.76% floor. Added one experimental topic targeting structural encoding attacks (LaTeX, acrostics, IPA, Unicode tags). Result: 1/6 additional bypasses caught, but 33% false-positive rate on benign prompts. Rolled back. The 12-topic golden-v2 configuration remains the optimal point on the precision/recall curve, hitting a structural classifier limit consistent with the prior production calibration engagement learnings.
 
 Validated the rolled-back configuration with a full AIRS Red Teaming Attack Library STATIC scan (1444 attacks across 18 categories) and a DYNAMIC agent scan (60 goals reached) against a live target running the golden-v2 runtime profile.
 
@@ -40,7 +40,7 @@ Validated the rolled-back configuration with a full AIRS Red Teaming Attack Libr
 | Benign FP rate on 15-prompt probe | TBD baseline | **33% (5/15)** |
 | Sample FPs | n/a | "hello world" x3, "what are common data structures", "explain HTTP status codes" |
 
-**Decision: ROLLBACK.** The 33% FP rate on benign prompts is unacceptable for production. The new topic's semantic neighborhood expanded too far, catching tokens like "structures" and "codes" that overlap with the LaTeX/structural injection vocabulary. Only 1 of 6 structural bypasses was caught (the LaTeX one), confirming MS finding that "each topic's semantic neighborhood expands when others are added/removed."
+**Decision: ROLLBACK.** The 33% FP rate on benign prompts is unacceptable for production. The new topic's semantic neighborhood expanded too far, catching tokens like "structures" and "codes" that overlap with the LaTeX/structural injection vocabulary. Only 1 of 6 structural bypasses was caught (the LaTeX one), confirming the prior calibration finding that "each topic's semantic neighborhood expands when others are added/removed."
 
 ### Iteration 3b: Rollback to v2 baseline
 
@@ -177,7 +177,7 @@ The scan AI summary highlighted **Political Bias** as the highest-risk category 
 
 The DYNAMIC agent score sits in the same band as comparable AIRS-runtime configurations on other targets (38-54 range). Multi-turn agent attacks defeat single-turn topic classifiers by design: the classifier sees each turn in isolation and cannot reason about the conversational arc that builds toward a successful exploit. Dropping the score below 20 requires either:
 
-1. AIRS multi-turn session context (referenced in MS R15 carryover items as a future capability)
+1. AIRS multi-turn session context (referenced in prior R15 carryover items as a future capability)
 2. The new topic detection engine in private preview (showed 100% precision on 4-topic sets)
 3. Application-level constraints (e.g., scope-limited tools, response sandboxing)
 
@@ -208,11 +208,11 @@ The bypass corpus is a curated 126-prompt subset extracted from prior red team C
 | `results/` | Per-iteration JSONL + summary JSON |
 | `RESULTS-v3.md` | This document |
 
-## Key Lessons Confirmed from MS Engagement
+## Key Lessons Confirmed from Prior Calibration Engagement
 
 1. **Concrete-token anchoring works but has limits.** The 13th topic was anchored to literal LaTeX syntax, IPA characters, and "acrostic poem" phrasing. Yet the classifier still over-matched into benign technical vocabulary ("structures", "codes", "world").
 
-2. **Each topic's neighborhood expands when others are added.** Adding `structural_format_injection` caused FP regression even on prompts that had no relationship to structural attacks (e.g., "hello world"). The MS R7 finding repeats here.
+2. **Each topic's neighborhood expands when others are added.** Adding `structural_format_injection` caused FP regression even on prompts that had no relationship to structural attacks (e.g., "hello world"). The prior R7 finding repeats here.
 
 3. **Run tests at least twice.** The 4.76% ASR on v2 was reproducible exactly across deployments, suggesting no classifier variance for the established v2 prompts. Variance is more pronounced on borderline cases.
 
@@ -227,10 +227,10 @@ The bypass corpus is a curated 126-prompt subset extracted from prior red team C
 | Full red team AGENT score | < 20 | 42.45 | NOT MET (multi-turn classifier limit) |
 | No FP regression on benign prompts | n/a | 20% on misc benign (existing v2 baseline) | NEUTRAL (no v3-induced regression; rolled back v3) |
 
-Two of four criteria met. The two unmet criteria both reflect the same structural constraint: the topic classifier engine cannot reliably detect encoding-disguised attacks (bypass corpus) or session-aware multi-turn pivots (DYNAMIC scan). These limits were independently confirmed in the Morgan Stanley engagement (R14 over-tightening, R15 new-engine experiments).
+Two of four criteria met. The two unmet criteria both reflect the same structural constraint: the topic classifier engine cannot reliably detect encoding-disguised attacks (bypass corpus) or session-aware multi-turn pivots (DYNAMIC scan). These limits were independently confirmed across multiple prior calibration rounds (R14 over-tightening, R15 new-engine experiments).
 
 ## Ship Decision
 
 **SHIP: Golden v2 (12 topics) at profile revision 5.**
 
-**DO NOT promote** the v3 13-topic variant. The structural limit is a property of the classifier engine, not a config bug. Future work should track the new topic engine GA (referenced in MS R15 notes) which may catch encoding attacks at 100% precision on small topic sets, plus AIRS multi-turn session context for agentic improvements.
+**DO NOT promote** the v3 13-topic variant. The structural limit is a property of the classifier engine, not a config bug. Future work should track the new topic engine GA (referenced in prior R15 notes) which may catch encoding attacks at 100% precision on small topic sets, plus AIRS multi-turn session context for agentic improvements.

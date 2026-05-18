@@ -1,6 +1,6 @@
 # Golden Config v2
 
-Simplified AIRS security profile tuned against the Red Teaming Attack Library. Reduced from 15 to 12 custom topics using precision learnings from the Morgan Stanley engagement, achieving the same protection with 20% fewer topics.
+Simplified AIRS security profile tuned against the Red Teaming Attack Library. Reduced from 15 to 12 custom topics using precision learnings from the prior production calibration engagement, achieving the same protection with 20% fewer topics.
 
 > **v3 iteration result (2026-05-15):** Attempted 13th topic for encoding/structural attacks. Caught 1/6 remaining bypasses but caused 33% benign FP. Rolled back. v2 remains optimal. See `RESULTS-v3.md`.
 
@@ -60,7 +60,7 @@ Breaking through the ~5% floor requires engine-level features (Unicode normaliza
 - `weapons_crime_framing` - novel writing, pentesting, hacktivism research framing
 
 ### Key Design Change
-Topic descriptions rewritten to 15-20 words anchored to concrete tokens (literal bypass phrases, specific framing patterns) instead of abstract behavior categories. This is the precision sweet spot identified in the MS engagement.
+Topic descriptions rewritten to 15-20 words anchored to concrete tokens (literal bypass phrases, specific framing patterns) instead of abstract behavior categories. This is the precision sweet spot identified in the prior calibration engagement.
 
 ## Quick Start
 
