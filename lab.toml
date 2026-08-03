@@ -5,6 +5,7 @@ surface = "mac"
 proves  = "A hardened reference profile tuned across eight red-team iterations. The strongest single number available for a setup conversation."
 
 [run]
+oneshot = true   # runs to completion and exits; nothing to tear down
 launch = "python golden-v2/test_runner.py --profile golden-v2 --limit 20"
 
 [requires]
