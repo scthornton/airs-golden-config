@@ -1,0 +1,16 @@
+id      = "golden-config"
+title   = "Golden config (ASR 8.71% to 1.02%)"
+intent  = ["setup", "redteam"]
+surface = "mac"
+proves  = "A hardened reference profile tuned across eight red-team iterations. The strongest single number available for a setup conversation."
+
+[run]
+launch = "python golden-v2/test_runner.py --profile golden-v2 --limit 20"
+
+[requires]
+env   = ["PANW_AI_SEC_API_KEY"]
+
+[demo]
+beats = [
+  "replays the attack corpus so you show the hardening rather than quoting it",
+]
