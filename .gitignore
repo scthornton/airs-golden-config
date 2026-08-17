@@ -31,3 +31,9 @@ results/*/attacks.csv
 # Temp
 *.tmp
 *.log
+
+# Local deployment state. These hold live tenant identifiers (profile_id and
+# custom-topic UUIDs) and must not be committed to a public repo. Start from
+# the .example.json files instead.
+mgmt/state.json
+golden-v2/state.json
