@@ -22,7 +22,7 @@ import argparse
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(__file__))
-from config import get_mgmt_client, load_state, save_state
+from config import get_mgmt_client, load_state, save_state, list_custom_topics
 
 # Topic library location
 TOPIC_LIB = Path(__file__).parent.parent.parent / "prisma-airs-custom-topics" / "topics"
@@ -140,9 +140,7 @@ def cmd_deploy(args):
             if "409" in err_str or "conflict" in err_str.lower():
                 print(f"  [409]  {name} — already exists in tenant, fetching ID...")
                 # Try to find it in tenant listing
-                existing = client.custom_topics.retrieve_all_custom_topics_by_tsgid(
-                    offset=0, limit=100
-                )
+                existing = list_custom_topics(client, offset=0, limit=100)
                 for t in (existing.custom_topics or []):
                     if t.topic_name == name:
                         deployed[name] = t.topic_id
@@ -161,9 +159,7 @@ def cmd_list(args):
     """List topics currently deployed in the tenant."""
     client = get_mgmt_client()
 
-    response = client.custom_topics.retrieve_all_custom_topics_by_tsgid(
-        offset=0, limit=100
-    )
+    response = list_custom_topics(client, offset=0, limit=100)
 
     topics = response.custom_topics or []
     print(f"\n  {len(topics)} topic(s) in tenant:\n")
@@ -215,9 +211,7 @@ def cmd_sync(args):
     client = get_mgmt_client()
     state = load_state()
 
-    response = client.custom_topics.retrieve_all_custom_topics_by_tsgid(
-        offset=0, limit=100
-    )
+    response = list_custom_topics(client, offset=0, limit=100)
 
     tenant_topics = {}
     for t in (response.custom_topics or []):

@@ -15,7 +15,7 @@ import os
 import argparse
 
 sys.path.insert(0, os.path.dirname(__file__))
-from config import get_mgmt_client, load_state, save_state
+from config import get_mgmt_client, load_state, save_state, list_ai_profiles, optional_field
 
 
 def build_policy(
@@ -95,7 +95,7 @@ def cmd_create(args):
     print(f"  ID:       {response.profile_id}")
     print(f"  Name:     {response.profile_name}")
     print(f"  Revision: {response.revision}")
-    print(f"  Active:   {response.active}")
+    print(f"  Active:   {optional_field(response, 'active')}")
 
 
 def cmd_show(args):
@@ -109,7 +109,7 @@ def cmd_show(args):
         cmd_list(args)
         return
 
-    response = client.ai_sec_profiles.retrieve_ai_profiles(offset=0, limit=100)
+    response = list_ai_profiles(client, offset=0, limit=100)
 
     found = None
     for profile in (response.ai_profiles or []):
@@ -120,7 +120,7 @@ def cmd_show(args):
     if found:
         print(f"\n  Profile: {found.profile_name}")
         print(f"  ID:      {found.profile_id}")
-        print(f"  Active:  {found.active}")
+        print(f"  Active:  {optional_field(found, 'active')}")
         print(f"  Rev:     {found.revision}")
         if hasattr(found, "policy") and found.policy:
             import json
@@ -193,12 +193,12 @@ def cmd_list(args):
     """List all profiles in the tenant."""
     client = get_mgmt_client()
 
-    response = client.ai_sec_profiles.retrieve_ai_profiles(offset=0, limit=100)
+    response = list_ai_profiles(client, offset=0, limit=100)
 
     profiles = response.ai_profiles or []
     print(f"\n  Found {len(profiles)} profile(s):\n")
     for p in profiles:
-        print(f"  [{p.profile_id}] {p.profile_name}  active={p.active}  rev={p.revision}")
+        print(f"  [{p.profile_id}] {p.profile_name}  active={optional_field(p, 'active')}  rev={p.revision}")
 
 
 def main():

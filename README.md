@@ -56,11 +56,8 @@ SCM Red Team Scanner
 cp .env.example .env   # Fill in your AIRS + OpenAI keys
 source .env
 
-# 2. Install SDK
+# 2. Install dependencies (needs Python 3.10+, check with: python3 --version)
 pip install -r requirements.txt
-pip install --index-url https://test.pypi.org/simple/ \
-    --extra-index-url https://pypi.org/simple/ \
-    pan-airs-api-mgmt-sdk==0.0.1a12
 
 # 3. Initialize state
 cp mgmt/state.example.json mgmt/state.json
@@ -74,6 +71,29 @@ python mgmt/profile_ops.py create
 # 6. Verify with a quick scan
 python scan/scan_tester.py --limit 5
 ```
+
+### SDK notes
+
+The Prisma AIRS Management SDK (`pan-airs-api-mgmt-sdk`) is GA on public PyPI and
+requires **Python 3.10 or newer**. Earlier versions of this README installed a
+pre-release from TestPyPI; that is no longer necessary.
+
+If pip reports `Could not find a version that satisfies the requirement ...
+(from versions: none)`, you are almost certainly on Python 3.9 or older. pip
+applies the `Requires-Python` constraint before it compares version numbers, so
+every release gets filtered out and pip reports "none" rather than a version
+mismatch.
+
+The scripts here work against both the GA releases and the older TestPyPI
+alphas. Two things changed across that boundary, and the code detects which is
+installed rather than assuming:
+
+| | TestPyPI alphas (<= 0.0.1a15) | PyPI GA (>= 0.0.3) |
+|---|---|---|
+| List custom topics | `retrieve_all_custom_topics_by_tsgid()` | `get_all_custom_topics()` |
+| List AI profiles | `retrieve_ai_profiles()` | `get_all_ai_profiles()` |
+| List DLP profiles | `retrieve_all_dlp_profiles()` | `get_all_dlp_profiles()` |
+| `active` field on topics and profiles | present | removed in 0.2.0 |
 
 ## Repo Structure
 

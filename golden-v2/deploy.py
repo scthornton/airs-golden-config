@@ -19,6 +19,43 @@ ROOT = Path(__file__).resolve().parent
 STATE_FILE = ROOT / "state.json"
 TOPICS_FILE = ROOT / "topics.json"
 
+
+# ---------------------------------------------------------------------------
+# Management SDK compatibility
+# ---------------------------------------------------------------------------
+# The SDK renamed its "list" methods when it went GA on public PyPI:
+#   retrieve_all_custom_topics_by_tsgid -> get_all_custom_topics
+#   retrieve_ai_profiles                -> get_all_ai_profiles
+# Same arguments, same return types. Resolve at call time so this script runs
+# against either the TestPyPI alphas or the GA releases.
+
+def _resolve(resource, *candidate_names):
+    for name in candidate_names:
+        method = getattr(resource, name, None)
+        if method is not None:
+            return method
+    raise AttributeError(
+        f"None of {candidate_names} found on {type(resource).__name__}. "
+        "Check the installed pan-airs-api-mgmt-sdk version."
+    )
+
+
+def list_custom_topics(client, offset=0, limit=100):
+    return _resolve(
+        client.custom_topics,
+        "get_all_custom_topics",
+        "retrieve_all_custom_topics_by_tsgid",
+    )(offset=offset, limit=limit)
+
+
+def list_ai_profiles(client, offset=0, limit=100):
+    return _resolve(
+        client.ai_sec_profiles,
+        "get_all_ai_profiles",
+        "retrieve_ai_profiles",
+    )(offset=offset, limit=limit)
+
+
 DLP_TIER1 = {
     "PII": "11995018",
     "Secrets and Credentials": "11995023",
@@ -37,7 +74,7 @@ def get_client():
     return MgmtClient(
         client_id=cid, client_secret=csec,
         base_url="https://api.sase.paloaltonetworks.com/aisec",
-        token_base_url="https://auth.apps.paloaltonetworks.com/oauth2/access_token",
+        token_base_url="https://auth.apps.paloaltonetworks.com/am/oauth2/access_token",
     )
 
 
@@ -57,7 +94,7 @@ def deploy_topics(client):
     topics = topics_data["topics"]
     state = load_state()
 
-    existing = client.custom_topics.retrieve_all_custom_topics_by_tsgid(offset=0, limit=200)
+    existing = list_custom_topics(client, offset=0, limit=200)
     existing_by_name = {t.topic_name: t for t in (existing.custom_topics or [])}
 
     deployed = dict(state.get("topic_ids", {}))
@@ -98,7 +135,6 @@ def deploy_topics(client):
                     examples=examples,
                     revision=1,
                     created_by="golden-v2@perfecxion.ai",
-                    active=True,
                 )
                 deployed[name] = resp.topic_id
                 revisions[name] = 1
@@ -106,7 +142,7 @@ def deploy_topics(client):
             except Exception as e:
                 err = str(e)
                 if "409" in err or "conflict" in err.lower():
-                    refetch = client.custom_topics.retrieve_all_custom_topics_by_tsgid(offset=0, limit=200)
+                    refetch = list_custom_topics(client, offset=0, limit=200)
                     for tp in (refetch.custom_topics or []):
                         if tp.topic_name == name:
                             deployed[name] = tp.topic_id
@@ -185,7 +221,7 @@ def build_policy(topic_ids):
 def deploy_profile(client, state, profile_name):
     policy = build_policy(state["topic_ids"])
 
-    existing = client.ai_sec_profiles.retrieve_ai_profiles(offset=0, limit=200)
+    existing = list_ai_profiles(client, offset=0, limit=200)
     matches = [p for p in (existing.ai_profiles or []) if p.profile_name == profile_name]
 
     if matches:

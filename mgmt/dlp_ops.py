@@ -19,7 +19,7 @@ import json
 import argparse
 
 sys.path.insert(0, os.path.dirname(__file__))
-from config import get_mgmt_client, load_state, save_state
+from config import get_mgmt_client, load_state, save_state, list_ai_profiles, list_dlp_profiles
 
 # Tier 1 DLP profiles — universal, safe to enable for any deployment
 TIER1_PROFILES = [
@@ -33,7 +33,7 @@ TIER1_PROFILES = [
 
 def get_available_dlp_profiles(client) -> list[dict]:
     """List all DLP profiles available on the tenant."""
-    response = client.dlp_profiles.retrieve_all_dlp_profiles()
+    response = list_dlp_profiles(client)
     profiles = []
     for p in (response.dlp_profiles or []):
         # Convert SDK object to dict
@@ -48,7 +48,7 @@ def get_available_dlp_profiles(client) -> list[dict]:
 
 def get_current_profile(client, profile_id: str) -> dict:
     """Retrieve the current security profile as a dict."""
-    response = client.ai_sec_profiles.retrieve_ai_profiles(offset=0, limit=100)
+    response = list_ai_profiles(client, offset=0, limit=100)
     for profile in (response.ai_profiles or []):
         if profile.profile_id == profile_id:
             if hasattr(profile, "model_dump"):

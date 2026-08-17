@@ -2,5 +2,9 @@ flask>=3.0
 requests>=2.31
 anthropic[vertex]>=0.40
 tqdm>=4.66
-# Management SDK from TestPyPI
-# pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ pan-airs-api-mgmt-sdk==0.0.1a12
+
+# Prisma AIRS Management SDK.
+# Now GA on public PyPI; the old TestPyPI alpha pin
+# (--index-url https://test.pypi.org/simple/ ... ==0.0.1a12) is no longer needed.
+# Requires Python 3.10 or newer.
+pan-airs-api-mgmt-sdk>=0.3.0

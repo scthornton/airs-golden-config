@@ -18,8 +18,10 @@ from pathlib import Path
 CLIENT_ID = os.environ.get("MODEL_SECURITY_CLIENT_ID") or os.environ.get("PANW_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("MODEL_SECURITY_CLIENT_SECRET") or os.environ.get("PANW_CLIENT_SECRET")
 
-# SDK defaults to QA token endpoint — override to production
-PROD_TOKEN_URL = "https://auth.apps.paloaltonetworks.com/oauth2/access_token"
+# SDK releases before 0.3.0 defaulted to the auth.appsvc host, which TLS-resets
+# from many networks. 0.3.0+ defaults to this endpoint; the override is kept so
+# the scripts behave the same on older installs.
+PROD_TOKEN_URL = "https://auth.apps.paloaltonetworks.com/am/oauth2/access_token"
 PROD_BASE_URL = "https://api.sase.paloaltonetworks.com/aisec"
 
 BASE_URL = os.environ.get("PANW_BASE_URL") or PROD_BASE_URL
@@ -79,6 +81,71 @@ def get_mgmt_client():
         base_url=BASE_URL,
         token_base_url=TOKEN_BASE_URL,
     )
+
+
+# ---------------------------------------------------------------------------
+# Management SDK compatibility
+# ---------------------------------------------------------------------------
+# When the SDK went GA on public PyPI it renamed the "list" method on every
+# resource group, and dropped the `active` field from the topic and profile
+# models. Arguments and return types are otherwise unchanged.
+#
+#   TestPyPI alphas (<= 0.0.1a15)          PyPI GA (>= 0.0.3)
+#   -----------------------------          ------------------
+#   retrieve_all_custom_topics_by_tsgid    get_all_custom_topics
+#   retrieve_ai_profiles                   get_all_ai_profiles
+#   retrieve_all_dlp_profiles              get_all_dlp_profiles
+#
+# Resolving the name at call time keeps these scripts working against either
+# generation, so nobody has to care which one happens to be installed.
+
+def _resolve(resource, *candidate_names):
+    """Return the first method that exists on `resource`, newest name first."""
+    for name in candidate_names:
+        method = getattr(resource, name, None)
+        if method is not None:
+            return method
+    raise AttributeError(
+        f"None of {candidate_names} found on {type(resource).__name__}. "
+        "Check the installed pan-airs-api-mgmt-sdk version."
+    )
+
+
+def list_custom_topics(client, offset: int = 0, limit: int = 100):
+    """List custom topics in the tenant (one page)."""
+    return _resolve(
+        client.custom_topics,
+        "get_all_custom_topics",
+        "retrieve_all_custom_topics_by_tsgid",
+    )(offset=offset, limit=limit)
+
+
+def list_ai_profiles(client, offset: int = 0, limit: int = 100):
+    """List AI security profiles in the tenant (one page)."""
+    return _resolve(
+        client.ai_sec_profiles,
+        "get_all_ai_profiles",
+        "retrieve_ai_profiles",
+    )(offset=offset, limit=limit)
+
+
+def list_dlp_profiles(client):
+    """List predefined DLP profiles. Note: this call takes no pagination args."""
+    return _resolve(
+        client.dlp_profiles,
+        "get_all_dlp_profiles",
+        "retrieve_all_dlp_profiles",
+    )()
+
+
+def optional_field(obj, name: str, default: str = "n/a"):
+    """Read a model field that may not exist on this SDK version.
+
+    `active` was removed from both CustomTopicObject and AIProfileObject in
+    SDK 0.2.0, so reading it directly raises AttributeError on GA releases.
+    """
+    value = getattr(obj, name, None)
+    return default if value is None else value
 
 
 def scan_prompt(prompt: str, profile_name: str = None) -> dict:
